@@ -1,59 +1,54 @@
-# Shutdown Tool (Python Version)
+# Shutdown Tool (Go Version)
 
-这是一个极其简单的 Python 脚本，允许你通过 HTTP 请求远程控制你的电脑（关机、睡眠、执行脚本等）。
+这是一个轻量级的远程控制工具（Airbridge 的极简替代品），使用 Go 语言编写。
+**无需本地安装 Go 环境**，本项目已配置 GitHub Actions 自动云端编译。
 
-它模仿了 **Airbridge** 的核心功能，但只用了一个 Python 文件和一个 JSON 配置文件即可运行，无需编译，依赖仅仅是 Python 标准库。
+## 📥 如何下载
 
-## 特性
+你不需要自己编译代码！
 
--   🐍 **纯 Python**：只需安装 Python 即可运行，无第三方依赖。
--   ⚙️ **简单配置**：通过 `config.json` 自定义命令。
--   🚀 **极速启动**：双击脚本即可运行。
+1.  点击本项目 GitHub 页面上方的 **Actions** 标签。
+2.  点击最新的一个 Workflow Run (通常是 "Build Shutdown Tool")。
+3.  在页面底部的 **Artifacts** 区域，点击 `shutdown-tool-windows` 下载。
+4.  解压下载的压缩包，即可得到 `shutdown-tool.exe`。
 
-## 快速开始
+## 🚀 快速开始
 
-### 1. 准备环境
+### 1. 配置
 
-确保电脑上安装了 Python (建议 3.6+)。
+在 `shutdown-tool.exe` 同级目录下创建一个 `config.yaml` 文件：
 
-### 2. 下载与配置
-
-1.  下载 `server.py` 和 `config.json` 到同一个文件夹。
-2.  (可选) 修改 `config.json` 定义你的命令：
-
-```json
-{
-  "port": 8080,
-  "commands": {
-    "shutdown": "shutdown /s /t 0",
-    "sleep": "rundll32.exe powrprof.dll,SetSuspendState 0,1,0",
-    "lock": "rundll32.exe user32.dll,LockWorkStation"
-  }
-}
+```yaml
+port: "8080" # 监听端口
+commands:
+  shutdown: "shutdown /s /t 0" # 关机
+  sleep: "rundll32.exe powrprof.dll,SetSuspendState 0,1,0" # 睡眠
+  # 你可以在这里添加任意 cmd 命令
 ```
 
-### 3. 运行
+### 2. 运行
 
--   **Windows**: 双击 `server.py` (如果安装 Python 时勾选了关联文件)，或者在命令行运行：
-    ```bash
-    python server.py
-    ```
+双击 `shutdown-tool.exe` 即可启动。
+看到 `Server starting on port 8080...` 表示启动成功。
 
-看到 `Serving on port 8080` 即表示启动成功。
+### 3. 使用方法 (手机端)
 
-### 4. 使用方法
+确保手机和电脑在同一 Wi-Fi 网络下。
 
-确保手机和电脑在同一局域网。
+1.  **获取电脑 IP**：在电脑终端输入 `ipconfig` 查看 IPv4 地址 (例如 `192.168.1.100`)。
+2.  **发送命令**：
+    -   **关机**：浏览器访问 `http://192.168.1.100:8080/execute/shutdown`
+    -   **睡眠**：浏览器访问 `http://192.168.1.100:8080/execute/sleep`
 
-1.  **获取电脑 IP**：在命令行输入 `ipconfig` 查看 IPv4 地址。
-2.  **发送请求**：
-    -   关机：浏览器访问 `http://<电脑IP>:8080/execute/shutdown`
-    -   睡眠：浏览器访问 `http://<电脑IP>:8080/execute/sleep`
-    -   查看所有命令：直接访问 `http://<电脑IP>:8080/`
+推荐使用 Android App **"HTTP Shortcuts"** 创建桌面快捷方式，一键触发。
 
-### 5. Android 配合使用
+## 🛠️ 自己编译 (可选)
 
-推荐使用 **HTTP Shortcuts** App 创建桌面快捷方式，一键触发。
+如果你确实想自己编译：
+
+```bash
+go build -o shutdown-tool.exe main.go
+```
 
 ## 许可证
 
