@@ -7,14 +7,29 @@
 
 请前往 GitHub Actions 页面下载最新的 `shutdown-tool-windows` 构建产物。
 
+## 🔍 服务名称
+
+如果你安装了服务，它在 Windows 服务列表 (`services.msc`) 中的名字是：
+-   **显示名称**: `Remote Shutdown Service`
+-   **服务名称**: `RemoteShutdown`
+
+你可以通过按 `Win + R` 输入 `services.msc` 找到它。
+
 ## 🚀 使用方法
 
-### 1. 方式一：直接运行 (调试用)
+### 1. 方式一：放到启动文件夹 (推荐用于睡眠/锁屏)
 
-双击 `shutdown-tool.exe` 或在命令行运行。
-此时会有黑框窗口，关闭窗口程序就会停止。
+如果你主要使用 **睡眠 (Sleep)** 或 **锁屏 (Lock)** 功能，**不要安装为服务**。
+因为 Windows 服务运行在隔离会话中，无法控制用户的桌面锁屏。
 
-### 2. 方式二：安装为服务 (推荐)
+**步骤：**
+1.  按 `Win + R`，输入 `shell:startup` 打开启动文件夹。
+2.  将 `shutdown-tool.exe` 放入该文件夹。
+3.  下次开机它会自动后台运行（无黑框）。
+
+### 2. 方式二：安装为服务 (推荐用于关机)
+
+如果你主要使用 **关机 (Shutdown)** 功能，服务模式最稳定。
 
 以**管理员身份**打开 CMD 或 PowerShell，进入程序所在目录：
 
@@ -26,7 +41,7 @@ shutdown-tool.exe install
 shutdown-tool.exe start
 ```
 
-安装后，程序将在后台静默运行，开机自启，无黑框干扰。
+**日志文件**：程序会在同级目录下生成 `shutdown-tool.log`，如果有问题可以查看该文件。
 
 **其他命令：**
 - 停止服务：`shutdown-tool.exe stop`

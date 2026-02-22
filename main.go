@@ -2,12 +2,15 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/kardianos/service"
 )
@@ -20,12 +23,16 @@ const (
 var (
 	// Defined commands
 	Commands = map[string]string{
+		// 直接调用 shutdown.exe，不走 cmd
 		"shutdown": "shutdown /s /t 0",
-		"sleep":    "rundll32.exe powrprof.dll,SetSuspendState 0,1,0",
+		"restart":  "shutdown /r /t 0",
 		"abort":    "shutdown /a",
+		// 睡眠和锁屏在服务模式下可能无效（受 Session 0 隔离限制）
+		"sleep":    "rundll32.exe powrprof.dll,SetSuspendState 0,1,0",
 		"lock":     "rundll32.exe user32.dll,LockWorkStation",
 	}
 	serviceLog service.Logger
+	logFile    *os.File
 )
 
 // Program structures
@@ -33,6 +40,8 @@ type program struct{}
 
 func (p *program) Start(s service.Service) error {
 	// Start should not block. Do the actual work async.
+	setupLogging()
+	logToFile("Service is starting...")
 	go p.run()
 	return nil
 }
@@ -46,24 +55,19 @@ func (p *program) run() {
 	})
 
 	logMsg := fmt.Sprintf("Server starting on port %s... Available commands: %v", Port, Commands)
-	if serviceLog != nil {
-		serviceLog.Info(logMsg)
-	} else {
-		fmt.Println(logMsg)
-	}
+	logToFile(logMsg)
 	
 	err := http.ListenAndServe(":"+Port, nil)
 	if err != nil {
-		if serviceLog != nil {
-			serviceLog.Error(fmt.Sprintf("Server failed to start: %v", err))
-		} else {
-			log.Fatal("Server failed to start:", err)
-		}
+		logToFile(fmt.Sprintf("Server failed to start: %v", err))
 	}
 }
 
 func (p *program) Stop(s service.Service) error {
-	// Any cleanup work goes here
+	logToFile("Service is stopping...")
+	if logFile != nil {
+		logFile.Close()
+	}
 	return nil
 }
 
@@ -82,36 +86,58 @@ func executeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg := fmt.Sprintf("Executing command: %s (%s)", cmdName, cmdStr)
-	if serviceLog != nil {
-		serviceLog.Info(msg)
-	} else {
-		log.Println(msg)
-	}
+	logToFile(fmt.Sprintf("Received request: %s -> %s", cmdName, cmdStr))
 
 	// Execute the command
 	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		cmd = exec.Command("cmd", "/C", cmdStr)
-	} else {
-		// Fallback for Linux/Mac
-		cmd = exec.Command("sh", "-c", cmdStr)
-	}
+	
+	// Split command and arguments
+	parts := strings.Fields(cmdStr)
+	head := parts[0]
+	args := parts[1:]
+
+	cmd = exec.Command(head, args...)
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		errMsg := fmt.Sprintf("Error executing command: %s\nOutput: %s", err, output)
-		if serviceLog != nil {
-			serviceLog.Error(errMsg)
-		} else {
-			log.Println(errMsg)
-		}
+		logToFile(errMsg)
 		http.Error(w, errMsg, http.StatusInternalServerError)
 		return
 	}
 
+	successMsg := fmt.Sprintf("Command '%s' executed successfully.\nOutput: %s", cmdName, output)
+	logToFile(successMsg)
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(fmt.Sprintf("Command '%s' executed successfully.\nOutput: %s", cmdName, output)))
+	w.Write([]byte(successMsg))
+}
+
+func setupLogging() {
+	// Get executable path
+	ex, err := os.Executable()
+	if err != nil {
+		return
+	}
+	exPath := filepath.Dir(ex)
+	logPath := filepath.Join(exPath, "shutdown-tool.log")
+
+	f, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		return
+	}
+	logFile = f
+	
+	// MultiWriter to print to console (if running interactively) and file
+	mw := io.MultiWriter(os.Stdout, f)
+	log.SetOutput(mw)
+}
+
+func logToFile(msg string) {
+	log.Printf("%s\n", msg)
+	if serviceLog != nil {
+		// Also send to Windows Event Log if available
+		serviceLog.Info(msg)
+	}
 }
 
 func main() {
@@ -131,6 +157,9 @@ func main() {
 
 	// Check for command line arguments (install, start, stop, uninstall)
 	if len(os.Args) > 1 {
+		// Setup logging for CLI operations too
+		setupLogging()
+		
 		action := os.Args[1]
 		err = service.Control(s, action)
 		if err != nil {
@@ -142,6 +171,8 @@ func main() {
 	}
 
 	// Run the service
+	// If run interactively, it executes here
+	// If run as service, it executes here too
 	err = s.Run()
 	if err != nil {
 		if serviceLog != nil {
