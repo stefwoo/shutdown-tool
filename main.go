@@ -6,23 +6,26 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 
 	"github.com/kardianos/service"
-	"gopkg.in/yaml.v3"
 )
 
-// Config represents the structure of the config.yaml file
-type Config struct {
-	Commands map[string]string `yaml:"commands"`
-	Port     string            `yaml:"port"`
-}
+// Hardcoded configuration
+const (
+	Port = "8080"
+)
 
 var (
-	config      Config
-	serviceLog  service.Logger
+	// Defined commands
+	Commands = map[string]string{
+		"shutdown": "shutdown /s /t 0",
+		"sleep":    "rundll32.exe powrprof.dll,SetSuspendState 0,1,0",
+		"abort":    "shutdown /a",
+		"lock":     "rundll32.exe user32.dll,LockWorkStation",
+	}
+	serviceLog service.Logger
 )
 
 // Program structures
@@ -35,44 +38,6 @@ func (p *program) Start(s service.Service) error {
 }
 
 func (p *program) run() {
-	// Determine executable directory for config file
-	// This is crucial because when running as a service, the CWD is usually System32
-	ex, err := os.Executable()
-	if err != nil {
-		if serviceLog != nil {
-			serviceLog.Error(fmt.Sprintf("Failed to get executable path: %v", err))
-		}
-		ex = "."
-	}
-	exPath := filepath.Dir(ex)
-	configFile := filepath.Join(exPath, "config.yaml")
-
-	// Load configuration
-	data, err := os.ReadFile(configFile)
-	if err != nil {
-		if serviceLog != nil {
-			serviceLog.Warning(fmt.Sprintf("Could not read config at %s: %v. Using defaults.", configFile, err))
-		}
-		// Default config
-		config = Config{
-			Commands: map[string]string{
-				"shutdown": "shutdown /s /t 0",
-			},
-			Port: "8080",
-		}
-	} else {
-		if err := yaml.Unmarshal(data, &config); err != nil {
-			if serviceLog != nil {
-				serviceLog.Error(fmt.Sprintf("Failed to parse config: %v", err))
-			}
-		}
-	}
-
-	// Set default port if not specified
-	if config.Port == "" {
-		config.Port = "8080"
-	}
-
 	http.HandleFunc("/execute/", executeHandler)
 	
 	// Add a root handler to check if server is running
@@ -80,14 +45,14 @@ func (p *program) run() {
 		w.Write([]byte("Shutdown Tool is running! Use /execute/{command} to trigger actions."))
 	})
 
-	logMsg := fmt.Sprintf("Server starting on port %s... Available commands: %v", config.Port, config.Commands)
+	logMsg := fmt.Sprintf("Server starting on port %s... Available commands: %v", Port, Commands)
 	if serviceLog != nil {
 		serviceLog.Info(logMsg)
 	} else {
 		fmt.Println(logMsg)
 	}
 	
-	err = http.ListenAndServe(":"+config.Port, nil)
+	err := http.ListenAndServe(":"+Port, nil)
 	if err != nil {
 		if serviceLog != nil {
 			serviceLog.Error(fmt.Sprintf("Server failed to start: %v", err))
@@ -111,7 +76,7 @@ func executeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	cmdName := pathParts[2]
 
-	cmdStr, ok := config.Commands[cmdName]
+	cmdStr, ok := Commands[cmdName]
 	if !ok {
 		http.Error(w, fmt.Sprintf("Command '%s' not found", cmdName), http.StatusNotFound)
 		return
@@ -170,8 +135,6 @@ func main() {
 		err = service.Control(s, action)
 		if err != nil {
 			fmt.Printf("Action '%s' failed: %v\n", action, err)
-			// Don't exit with error code strictly, just inform user.
-			// Unless it's critical.
 		} else {
 			fmt.Printf("Action '%s' succeeded.\n", action)
 		}
@@ -179,7 +142,6 @@ func main() {
 	}
 
 	// Run the service
-	// If run interactively (not as service), this will run the program normally
 	err = s.Run()
 	if err != nil {
 		if serviceLog != nil {
