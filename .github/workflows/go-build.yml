@@ -19,6 +19,11 @@ jobs:
       with:
         go-version: '1.21'
 
+    - name: Download Dependencies
+      run: |
+        go mod tidy
+        go mod download
+
     - name: Build Windows
       run: |
         GOOS=windows GOARCH=amd64 go build -v -o shutdown-tool.exe main.go
