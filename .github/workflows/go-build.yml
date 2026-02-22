@@ -24,9 +24,11 @@ jobs:
         go mod tidy
         go mod download
 
-    - name: Build Windows
+    - name: Build Windows Binary
       run: |
-        GOOS=windows GOARCH=amd64 go build -v -o shutdown-tool.exe main.go
+        # -s -w: 减小体积
+        # -H windowsgui: 隐藏命令行窗口 (对服务模式很重要，对普通运行也适用)
+        GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o shutdown-tool.exe main.go
 
     - name: Upload Windows Artifact
       uses: actions/upload-artifact@v4
