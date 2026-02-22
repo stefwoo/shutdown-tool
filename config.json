@@ -1,0 +1,9 @@
+{
+  "port": 8080,
+  "commands": {
+    "shutdown": "shutdown /s /t 0",
+    "sleep": "rundll32.exe powrprof.dll,SetSuspendState 0,1,0",
+    "lock": "rundll32.exe user32.dll,LockWorkStation",
+    "abort": "shutdown /a"
+  }
+}
